@@ -1,2 +1,15 @@
 # unsupervised_pinn_boltzmann
-Study whether a pinn with no supervised data can solve the boltzmann equation.
+
+Can a physics-informed neural network approximate the solution of the 1D Boltzmann–BGK equation without supervised data while preserving macroscopic conservation laws?
+
+Plan:
+- 1. Build MLP model
+    - Forward pass
+    - Gradient verification
+- 2. Maxwellian computation
+    - Moment computation
+    - Validation of equilibrium
+- 3. PDE residual with autograd
+    - Trivial testcase (equilibrium solution?)
+- 4. Training loop, first run
+    - Initial condition loss
