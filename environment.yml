@@ -1,0 +1,8 @@
+name: unsupervised_boltzmann_pinn
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch=2.10
+  - torchinfo=1.8.0
