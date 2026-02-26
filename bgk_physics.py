@@ -1,12 +1,8 @@
 import torch
-from math import pi as PI
+from numpy import pi as PI
 
-torch.set_default_dtype(torch.float64)
-num_grid_p = 1000
+torch.set_default_dtype(torch.float32)
 #It is important, that v range is symmetric AND wide enough (v = u plusminus 5 sqrt(T)
-v_max = 8.2
-v_min = -8.2
-v_grid = torch.linspace(v_min, v_max, num_grid_p)
 
 def density(f, v):
 
@@ -40,16 +36,11 @@ def temperature(f, v):
 
 def maxwellian(rho, u, T, v):
 
-    rho = rho.unsqueeze(1)      # (batch_size, 1)
-    T = T.unsqueeze(1)
-    u = u.unsqueeze(1)
 
-    v = v.unsqueeze(0)     # (1, points)
 
-    T_safe = T + 1e-12 #Avoids case where T is zero
-
-    prefactor = rho / torch.sqrt(2.0 * PI * T_safe)
-    exponent = - torch.pow((v - u), 2) / (2.0 * T_safe)
+    prefactor = torch.sqrt(2.0 * 3 * T)
+    prefactor = rho / torch.sqrt(2.0 * PI * T)
+    exponent = - torch.pow((v - u), 2) / (2.0 * T)
 
     return prefactor * torch.exp(exponent)
 
