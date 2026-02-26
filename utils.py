@@ -52,18 +52,25 @@ def initialize_physics_data(
         "N_v": N_v,
     }
 
-    return {
-        "t_tx": t_tx,
-        "x_tx": x_tx,
-        "v_grid": v_grid,
-        "domain": domain,
-    }
+    return t_tx, x_tx, v_grid, domain
 
 
 def make_txv_stack(t, x, v):
+
     # Expand physics batch
-    T = t.unsqueeze(1).repeat(1, N_v)
-    X = x.unsqueeze(1).repeat(1, N_v)
+    N_v = v.size(dim=0)
+    N_tx = t.size(dim=0)
+
+    #Repeat is not the most elegant, but okay for a small
+    #project like this, in production would change to expand.
+    #but did not know if we would changes values (expand returns view!)
+    T = t.repeat(1, N_v)
+    X = x.repeat(1, N_v)
     V = v.unsqueeze(0).repeat(N_tx, 1)
 
     return torch.stack([T, X, V], dim=-1).reshape(-1, 3)
+
+if __name__ == "__main__":
+    t, x, v, domain = initialize_physics_data(10, 5, 0, 1, -2, 2, 1.5,)
+    txv = make_txv_stack(t, x, v)
+    print(txv)
