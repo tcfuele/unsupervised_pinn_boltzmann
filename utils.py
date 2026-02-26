@@ -68,7 +68,7 @@ def make_txv_stack(t, x, v):
     X = x.repeat(1, N_v)
     V = v.unsqueeze(0).repeat(N_tx, 1)
 
-    return torch.stack([T, X, V], dim=-1).reshape(-1, 3)
+    return torch.stack([T, X, V], dim=-1).reshape(-1, 3).requires_grad_(True)
 
 if __name__ == "__main__":
     t, x, v, domain = initialize_physics_data(10, 5, 0, 1, -2, 2, 1.5,)
