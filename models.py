@@ -27,6 +27,12 @@ class Mlp(nn.Module):
             nn.Tanh(),
             nn.Linear(128, 128),    #5
             nn.Tanh(),
+            nn.Linear(128, 128),    #5
+            nn.Tanh(),
+            nn.Linear(128, 128),    #5
+            nn.Tanh(),
+            nn.Linear(128, 128),    #5
+            nn.Tanh(),
             nn.Linear(128, 1),      #6
         )
 

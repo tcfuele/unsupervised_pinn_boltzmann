@@ -36,11 +36,8 @@ def temperature(f, v):
 
 def maxwellian(rho, u, T, v):
 
-
-
-    prefactor = torch.sqrt(2.0 * 3 * T)
     prefactor = rho / torch.sqrt(2.0 * PI * T)
-    exponent = - torch.pow((v - u), 2) / (2.0 * T)
+    exponent = -torch.pow((v - u), 2) / (2.0 * T)
 
     return prefactor * torch.exp(exponent)
 

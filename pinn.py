@@ -11,10 +11,8 @@ def bgk_residual(model, txv, tau=1.0):
 
     Returns R: shape (N,)
     """
-    print("txv shape",txv.shape)
     #txv = txv.clone().detach().requires_grad_(True)
     f = model(txv)
-    print("f dim", f.dim())
 
     # Gradients
     grads = torch.autograd.grad(
