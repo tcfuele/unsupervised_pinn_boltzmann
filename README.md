@@ -14,6 +14,7 @@ Plan:
 - 4. Training loop, first run ✓
     - Initial condition loss ✓
 - 5. Add periodic boundary conditions ✓
-- 6. Add visualization and conservation monitoring
-- 7. Improve Training parameters
-- 8. Cleanup! Code, Readme (This project was never in a messy state :D)
+- 6. Add visualization and conservation monitoring ✓
+- 7. Reduce memory load
+- 8. Improve Training parameters
+- 9. Cleanup! Code, Readme (This project was never in a messy state :D)
