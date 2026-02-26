@@ -17,8 +17,8 @@ SEED = 42       #Make sure to change to something random, if not testing! :)
 N_TX = 128      #Number of points in t and x dimension
 N_V = 96        #Number of points in v
 
-X_MIN = -1.0
-X_MAX =  1.0
+X_MIN = -2.0
+X_MAX =  2.0
 T_MIN =  0.0
 T_MAX =  0.5
 V_MAX =  6.0
@@ -69,16 +69,31 @@ def ic_loss(model, x, v):
 
 print(txv.shape)
 
+def boundary_loss(model, t, v, x_min=-2.0, x_max=2.0):
+
+    x_left = torch.full_like(t, x_min)
+    x_right = torch.full_like(t, x_max)
+
+    txv_left = make_txv_stack(t, x_left, v)
+    txv_right = make_txv_stack(t, x_right, v)
+
+    f_left = model(txv_left)
+    f_right = model(txv_right)
+
+    return torch.mean(torch.pow((f_left - f_right), 2))
+
 
 for epoch in range(EPOCHS):
     #y_pred = model(txv)
 
     optimizer.zero_grad()
 
+    t = torch.rand(N_TX, 1, device=DEVICE)
+    x = torch.rand(N_TX, 1, device=DEVICE) * (X_MAX - X_MIN) - X_MAX  # [-2,2]
 
     txv = make_txv_stack(t, x, v)
 
-    loss = pde_loss(model, txv, TAU) + 10 * ic_loss(model, x, v) #MAGIC NUMBER!
+    loss = pde_loss(model, txv, TAU) + 10 * ic_loss(model, x, v) + 1.0 * boundary_loss(model, t, v, X_MIN, X_MAX) #MAGIC NUMBER!
     print(loss.item())
 
     loss.backward()
