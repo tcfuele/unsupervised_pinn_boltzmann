@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchinfo import summary
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.set_default_dtype(torch.float32)
 
 def xavier_init(module):
     if isinstance(module, nn.Linear):
@@ -14,7 +16,6 @@ class Mlp(nn.Module):
 
         super().__init__()
 
-        self.flatten = nn.Flatten()
         self.linear_tanh_stack = nn.Sequential(
             nn.Linear(3, 128),      #1
             nn.Tanh(),
@@ -30,14 +31,10 @@ class Mlp(nn.Module):
         )
 
         self.linear_tanh_stack.apply(xavier_init)
-        self.linear_tanh_stack = self.linear_tanh_stack.to(torch.float64)
 
     def forward(self, x):
-        x = x.flatten()
         logits = self.linear_tanh_stack(x)
-        return logits
-
-#    def wheights_init():
+        return F.softplus(logits)
 
 
 #Execute as main for testing
@@ -45,18 +42,18 @@ if __name__ == "__main__":
 
     print("Training device is: ", DEVICE)
 
-    model = Mlp().to(torch.float64)
-    test_tensor = torch.cat([torch.zeros(1,1,dtype=torch.float64),
-        torch.zeros(1,1,dtype=torch.float64),
-        torch.zeros(1,1,dtype=torch.float64)])
+    model = Mlp().to(torch.float32)
+    test_tensor = torch.cat([torch.zeros(1,1,dtype=torch.float32),
+        torch.zeros(1,1,dtype=torch.float32),
+        torch.zeros(1,1,dtype=torch.float32)])
     print(test_tensor)
     summary(model, input_data=test_tensor
     )
 
     #Test gradients
-    t = torch.tensor([[0.1]], requires_grad=True, dtype=torch.float64)
-    x = torch.tensor([[0.2]], requires_grad=True, dtype=torch.float64)
-    v = torch.tensor([[0.3]], requires_grad=True, dtype=torch.float64)
+    t = torch.tensor([[0.1]], requires_grad=True, dtype=torch.float32)
+    x = torch.tensor([[0.2]], requires_grad=True, dtype=torch.float32)
+    v = torch.tensor([[0.3]], requires_grad=True, dtype=torch.float32)
 
     model.to(DEVICE)
     input = torch.cat([t, x, v], dim=-1).to(DEVICE)
