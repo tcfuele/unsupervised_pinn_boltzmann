@@ -11,7 +11,6 @@ def initialize_physics_data(
     v_max=8.2,
     device='cuda',
     dtype=torch.float64,
-    seed=42,
 ):
     """
     Initialize physics data for 1D-1V Boltzmann-BGK PINN.
@@ -24,8 +23,6 @@ def initialize_physics_data(
             v_weights  : (N_v,) quadrature weights
             domain     : dictionary with domain metadata
     """
-
-    torch.manual_seed(seed)   #Change later
 
 
     #Sample space-time points as

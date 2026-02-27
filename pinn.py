@@ -4,7 +4,7 @@ from math import pi as PI, sqrt
 from bgk_physics import density, compute_u, temperature, maxwellian
 
 
-def bgk_residual(model, txv, tau=1.0):
+def bgk_residual(model, txv, v_grid, tau=1.0):
     """
     Computes the BGK PDE residual at given (t,x,v) points.
     txv: shape (N,3), columns are (t, x, v)
@@ -21,20 +21,19 @@ def bgk_residual(model, txv, tau=1.0):
         create_graph=True
     )[0]
 
-    N_total = txv.size(0)
     df_dt = grads[:, 0]  # d f / dt
     df_dx = grads[:, 1]  # d f / dx
     v = txv[:, 2]        # velocity
-    v_grid = torch.unique(txv[:, 2].detach())
+
+    N_total = txv.size(0)
     N_v = v_grid.size(0)
     N_tx = N_total // N_v
 
     f_grid = f.view(N_tx, N_v)
     # Compute macroscopic quantities for each point
     # Here, for simplicity, we treat each point independently
-    rho = density(f_grid, v_grid)       # scalar per point
+    rho = density(f_grid, v_grid).repeat(N_v)       # scalar per point
     u = compute_u(f_grid, v_grid).repeat_interleave(N_v)
-    rho = rho.repeat_interleave(N_v)
     T = temperature(f_grid, v_grid).repeat_interleave(N_v)
     M = maxwellian(rho, u, T, v)
 

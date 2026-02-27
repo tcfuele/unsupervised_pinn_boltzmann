@@ -17,30 +17,24 @@ class Mlp(nn.Module):
         super().__init__()
 
         self.linear_tanh_stack = nn.Sequential(
-            nn.Linear(3, 128),      #1
+            nn.Linear(3, 64),      #1
             nn.Tanh(),
-            nn.Linear(128, 128),    #2
+            nn.Linear(64, 64),    #2
             nn.Tanh(),
-            nn.Linear(128, 128),    #3
+            nn.Linear(64, 64),    #3
             nn.Tanh(),
-            nn.Linear(128, 128),    #4
+            nn.Linear(64, 64),    #4
             nn.Tanh(),
-            nn.Linear(128, 128),    #5
+            nn.Linear(64, 64),    #5
             nn.Tanh(),
-            nn.Linear(128, 128),    #5
-            nn.Tanh(),
-            nn.Linear(128, 128),    #5
-            nn.Tanh(),
-            nn.Linear(128, 128),    #5
-            nn.Tanh(),
-            nn.Linear(128, 1),      #6
+            nn.Linear(64, 1),      #6
         )
 
         self.linear_tanh_stack.apply(xavier_init)
 
     def forward(self, x):
         logits = self.linear_tanh_stack(x)
-        return F.softplus(logits)
+        return torch.exp(logits)
 
 
 #Execute as main for testing

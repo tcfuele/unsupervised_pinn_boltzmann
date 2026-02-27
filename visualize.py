@@ -7,6 +7,7 @@ def plot_fxv(model, t_fixed, x_grid, v_grid):
     """
     Plot f(x,v) at a fixed time
     """
+    model.eval()
     t = torch.full((x_grid.size(0),1), t_fixed, device=x_grid.device)
     txv = make_txv_stack(t, x_grid, v_grid)
 
@@ -29,6 +30,7 @@ def plot_fxv(model, t_fixed, x_grid, v_grid):
     plt.show()
 
 def plot_moments(model, t_fixed, x_grid, v_grid):
+    model.eval()
     t = torch.full((x_grid.size(0),1), t_fixed, device=x_grid.device)
     txv = make_txv_stack(t, x_grid, v_grid)
 
@@ -68,7 +70,9 @@ def plot_moments(model, t_fixed, x_grid, v_grid):
 
 from matplotlib.animation import FuncAnimation
 
+"""
 def animate_density(model, x_grid, v_grid, t_list):
+    model.eval()
     fig, ax = plt.subplots()
     line, = ax.plot([], [], lw=2)
     ax.set_xlim(x_grid[0].item(), x_grid[-1].item())
@@ -76,16 +80,57 @@ def animate_density(model, x_grid, v_grid, t_list):
 
     def update(frame):
         t = t_list[frame]
-        t_tensor = torch.full((x_grid.size(0),1), t, device=x_grid.device)
+        t_tensor = torch.full(
+            (x_grid.size(0), 1),
+            t,
+            device=x_grid.device
+        )
         txv = make_txv_stack(t_tensor, x_grid, v_grid)
-        f = model(txv).detach()
+        with torch.no_grad():
+            f = model(txv)
         N_x = x_grid.size(0)
         N_v = v_grid.size(0)
         f_grid = f.view(N_x, N_v)
         rho = density(f_grid, v_grid)
-        line.set_data(x_grid.cpu(), rho.cpu())
+        line.set_data(x_grid.detach().cpu().numpy(), rho.detach().cpu().numpy())
+        ax.set_title(f"Density ρ at t={t:.2f}")
+        return line
+
+    ani = FuncAnimation(fig, update, frames=len(t_list), blit=False)
+    plt.show()
+"""
+def animate_density(model, x_grid, v_grid, t_list):
+    model.eval()
+    N_x = x_grid.size(0)
+    N_v = v_grid.size(0)
+
+    # Precompute first frame
+    t0 = t_list[0]
+    t_tensor = torch.full((N_x,1), t0, device=x_grid.device)
+    txv = make_txv_stack(t_tensor, x_grid, v_grid)
+    with torch.no_grad():
+        f = model(txv)
+    f_grid = torch.stack(f.split(N_v))
+    rho0 = density(f_grid, v_grid)
+
+    fig, ax = plt.subplots()
+    line, = ax.plot(x_grid.detach().cpu().numpy(),
+                    rho0.detach().cpu().numpy(), lw=2)
+    ax.set_xlim(x_grid[0].item(), x_grid[-1].item())
+    ax.set_ylim(0, 1.1 * rho0.max().item())  # scale to first frame
+
+    def update(frame):
+        t = t_list[frame]
+        t_tensor = torch.full((N_x,1), t, device=x_grid.device)
+        txv = make_txv_stack(t_tensor, x_grid, v_grid)
+        with torch.no_grad():
+            f = model(txv)
+        f_grid = torch.stack(f.split(N_v))
+        rho = density(f_grid, v_grid)
+        line.set_data(x_grid.detach().cpu().numpy(),
+                      rho.detach().cpu().numpy())
         ax.set_title(f"Density ρ at t={t:.2f}")
         return line,
 
-    ani = FuncAnimation(fig, update, frames=len(t_list), blit=True)
+    ani = FuncAnimation(fig, update, interval=500, frames=len(t_list), blit=False)
     plt.show()
