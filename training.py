@@ -10,7 +10,7 @@ DEVICE = str(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 DTYPE = torch.float64
 
 #Learning parameters
-EPOCHS = 20000
+EPOCHS = 35000
 LR = 1e-4
 
 #Dynamical parameters:
@@ -57,6 +57,10 @@ def moment_conservation_loss(model, t, x, v):
 
 
 def pde_loss(model, t, x, v, tau):
+    """
+    Computes the mean squared loss of the residual from the
+    bgk maxwellian. This is the pde loss.
+    """
     R = bgk_residual(model, t, x, v, tau)
     loss_pde = torch.mean(torch.pow(R, 2))
     return loss_pde
