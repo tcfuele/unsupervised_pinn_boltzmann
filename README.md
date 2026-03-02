@@ -27,7 +27,7 @@ Also I provide a small gif generator to look at the time evolution of the densit
 
 ## Usage
 
-The model is run by executing `training.py` as main:
+The dependencies are listed in the environment.yml file. If you are using conda you can build the environment from that. If not you will have to extract them manually and install them via `pip`. The model is run by executing `training.py` as main:
 
 ```
 python3 training.py
