@@ -1,10 +1,14 @@
 # unsupervised_pinn_boltzmann
 
 This project was created to answer the question: "Can a physics-informed neural network approximate the solution of the 1D Boltzmann–BGK equation without supervised data while preserving macroscopic conservation laws?"
+
+
 It is indeed possible to solve this and there is very interesting insight to be gained from that. Currently I am working on a physics notebook to provide further information on that, as well as tweaking the parameters. Otherwise the model is fully functional and you can run it on your own machine (see Usage).
 
 The model will train an unsupervised PINN with loss terms enforcing right behaviour of: PDE, boundary condition, initial condition and moment conservation.
 The initial condition looks like a flat density distribution with a small cosine perturbation:
+
+## Results
 
 ![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/blob/main/figures/moments_12000.jpg)
 
@@ -18,6 +22,7 @@ The learned distribution at initial time can be visualized in the phase space li
 Also I provide a small gif generator to look at the time evolution of the density function of the system:
 
 ![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/blob/main/figures/ani_12000.gif)
+
 
 
 ## Usage
