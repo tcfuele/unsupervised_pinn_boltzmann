@@ -6,18 +6,18 @@ It is indeed possible to solve this and there is very interesting insight to be 
 The model will train an unsupervised PINN with loss terms enforcing right behaviour of: PDE, boundary condition, initial condition and moment conservation.
 The initial condition looks like a flat density distribution with a small cosine perturbation:
 
-![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/figures/moments_12000.jpg)
+![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/blob/main/figures/moments_12000.jpg)
 
 
-One can see an offset here since the distribution function is translational invariant.
+One can see an offset here since the parameters for the boundary loss are not perfectly fixed yet. The PDE is translational invariant, the multi layer perceptron is not! That's where more tweaking is needed.
 The learned distribution at initial time can be visualized in the phase space like this:
 
-![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/figures/f_12000.jpg)
+![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/blob/main/figures/f_12000.jpg)
 
 
 Also I provide a small gif generator to look at the time evolution of the density function of the system:
 
-![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/figures/ani_12000.gif)
+![](https://github.com/tcfuele/unsupervised_pinn_boltzmann/blob/main/figures/ani_12000.gif)
 
 
 ## Usage
