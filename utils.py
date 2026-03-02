@@ -13,33 +13,30 @@ def initialize_physics_data(
     dtype=torch.float64,
 ):
     """
-    Initialize physics data for 1D-1V Boltzmann-BGK PINN.
+    Initialize physics data for 1D Boltzmann-BGK PINN.
 
     Returns:
         dict containing:
             t_tx       : (N_tx, 1) space-time time samples
             x_tx       : (N_tx, 1) space-time spatial samples
             v_grid     : (N_v,) velocity grid
-            v_weights  : (N_v,) quadrature weights
             domain     : dictionary with domain metadata
     """
 
 
     #Sample space-time points as
     #uniform random collocation points
-    t_tx = torch.rand(N_tx, 1, dtype=dtype, device=device)
+    t_tx = torch.rand(N_tx, 1, dtype=dtype, device=device).requires_grad_(True)
     t_tx = t_min + (t_max - t_min) * t_tx
 
-    x_tx = torch.rand(N_tx, 1, dtype=dtype, device=device)
+    x_tx = torch.rand(N_tx, 1, dtype=dtype, device=device).requires_grad_(True)
     x_tx = x_min + (x_max - x_min) * x_tx
-
 
     v_grid = torch.linspace(
         -v_max, v_max, N_v, dtype=dtype, device=device
-    )
+    ).requires_grad_(True)
 
     #Domain metadata
-
     domain = {
         "t_min": t_min,
         "t_max": t_max,
@@ -54,7 +51,6 @@ def initialize_physics_data(
 
 
 def make_txv_stack(t, x, v):
-
     # Expand physics batch
     N_v = v.size(dim=0)
     N_tx = t.size(dim=0)
@@ -67,49 +63,3 @@ def make_txv_stack(t, x, v):
     V = v.unsqueeze(0).repeat(N_tx, 1)
 
     return torch.stack([T, X, V], dim=-1).reshape(-1, 3).requires_grad_(True)
-
-if __name__ == "__main__":
-    t, x, v, domain = initialize_physics_data(10, 5, 0, 1, -2, 2, 1.5,)
-    txv = make_txv_stack(t, x, v)
-    print(txv)
-
-def numpy_data_grid(
-    N_tx=1024,
-    N_v=48,
-    t_min=0.0,
-    t_max=5.0,
-    x_min=-4.0,
-    x_max=4.0,
-    v_max=8.2,
-):
-    """
-    Initialize physics data for 1D-1V Boltzmann-BGK PINN.
-
-    Returns:
-        dict containing:
-            t_tx       : (N_tx, 1) space-time time samples
-            x_tx       : (N_tx, 1) space-time spatial samples
-            v_grid     : (N_v,) velocity grid
-            v_weights  : (N_v,) quadrature weights
-            domain     : dictionary with domain metadata
-    """
-
-    t_tx = np.linspace(t_min, t_max, N_tx)
-
-    x_tx = np.linspace(x_min, x_max, N_tx)
-
-    v_grid = np.linspace(0.0, v_max, N_v)
-
-    #Domain metadata
-
-    domain = {
-        "t_min": t_min,
-        "t_max": t_max,
-        "x_min": x_min,
-        "x_max": x_max,
-        "v_max": v_max,
-        "N_tx": N_tx,
-        "N_v": N_v,
-    }
-
-    return t_tx, x_tx, v_grid, domain

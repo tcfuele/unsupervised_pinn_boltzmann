@@ -1,121 +1,161 @@
 import torch
 import models
-from math import pi as PI
+from bgk_physics import *
 from bgk_physics import maxwellian
 from pinn import bgk_residual
-from utils import initialize_physics_data, make_txv_stack, numpy_data_grid
-from visualize import plot_fxv, plot_moments, animate_density
+from utils import initialize_physics_data, make_txv_stack
 
-torch.set_default_dtype(torch.float64)
-#Learning Params
+#Hardware specifics
 DEVICE = str(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-EPOCHS = 10000
-LR = 1e-5
 DTYPE = torch.float64
 
-#Sampling params
-N_TX = 100      #Number of points in t and x dimension
-N_V = 48       #Number of points in v
+#Learning parameters
+EPOCHS = 20000
+LR = 1e-4
 
-X_MIN = -1.0
+#Dynamical parameters:
+TAU = 1.0       #Relaxation time of Boltzmann BGK solution
+
+X_MIN = -1.0    #spatial grid
 X_MAX =  1.0
-T_MIN =  0.0
+
+T_MIN =  0.0    #temporal grid
 T_MAX =  1.0
-T0    = 1.0
-V_MAX = 6.5 # 5 * (T0 ** 0.5)
 
-TAU = 0.5       #Relaxation time
+T0    = 1.0     #temperature for initial condition
+
+V_MAX = 6.5     #Maximum velocity
+
+#Grid parameters
+N_TX = 256      #Number of points in t and x dimension each
+N_V = 64        #Number of points in v
 
 
-t, x, v, domain = initialize_physics_data(N_TX, N_V, T_MIN, T_MAX, X_MIN, X_MAX, V_MAX, DEVICE, DTYPE)
-txv = make_txv_stack(t, x, v)
-print("Learning on domain: ", domain)
+def moment_conservation_loss(model, t, x, v):
+    txv = make_txv_stack(t, x, v)
+    f = model(txv).squeeze(-1)
+    N_v = v.size(0)
+    N_tx = t.size(0)
+    f = f.view(N_tx, N_v)
 
-model = models.Mlp()
-model.to(DEVICE)
+    rho = density(f, v)
+    u = compute_u(f, v)
+    T = temperature(f, v)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    M = maxwellian(rho.unsqueeze(1), u.unsqueeze(1), T.unsqueeze(1),
+                   v.unsqueeze(0).expand(N_tx, -1))
 
-x_ic = torch.linspace(X_MIN, X_MAX, N_TX, device=DEVICE).unsqueeze(1)
-t_ic = torch.zeros_like(x_ic)
-txv_ic = make_txv_stack(t_ic, x_ic, v)
+    mass_error = torch.trapezoid(M - f, v, dim=1)
+    momentum_error = torch.trapezoid((M - f) * v, v, dim=1)
+    energy_error = torch.trapezoid(0.5*(M - f)*v**2, v, dim=1)
 
-def pde_loss(model, txv, v, tau):
+    return (
+        torch.mean(mass_error**2)
+        + torch.mean(momentum_error**2)
+        + torch.mean(energy_error**2)
+    )
 
-    R = bgk_residual(model, txv, v, tau)
 
+def pde_loss(model, t, x, v, tau):
+    R = bgk_residual(model, t, x, v, tau)
     loss_pde = torch.mean(torch.pow(R, 2))
-
     return loss_pde
 
+
 def initial_distribution(txv, rho0=1.0, u0=0.0, T0=1.0, eps=0.05):
-
+    """
+    Initial distribution is a flat density with a small cosine
+    disturbance.
+    """
     x = txv[:, 1]
-    v = txv[:, 2]       #Better sample new? In theory it does not make any difference!
+    v = txv[:, 2]
 
-    rho = rho0 * (1.0 + eps * torch.sin(PI * (x - X_MIN) / (X_MAX - X_MIN)))
+    rho = rho0 * (1.0 + eps * torch.cos(torch.pi * x))
 
     prefactor = rho / torch.sqrt(torch.tensor(2.0 * PI * T0, dtype=DTYPE, device=DEVICE))
     exponent = - (v - u0)**2 / (2.0 * T0)
 
     return prefactor * torch.exp(exponent)
 
-def ic_loss(model):
 
-    f_pred = model(txv_ic)
+def ic_loss(model, txv_ic):
+    """
+    Forces the pinn solution to take the form
+    of initial distribution at t=0.0
+    """
+    f_pred = model(txv_ic).squeeze(-1)
     f_true = initial_distribution(txv_ic)
-
     return torch.mean(torch.pow((f_pred - f_true), 2))
 
 
 def boundary_loss(model, t, v, x_min=-2.0, x_max=2.0):
-
+    """
+    Fixes pinn solution at the edges of spatial domain.
+    Internally forces Pinn to have X_MAX and X_MIN at that
+    point.
+    """
     x_left = torch.full_like(t, x_min)
     x_right = torch.full_like(t, x_max)
 
     txv_left = make_txv_stack(t, x_left, v)
     txv_right = make_txv_stack(t, x_right, v)
 
-    f_left = model(txv_left)
-    f_right = model(txv_right)
+    f_left = model(txv_left).squeeze(-1)
+    f_right = model(txv_right).squeeze(-1)
 
     return torch.mean(torch.pow((f_left - f_right), 2))
 
 
-for epoch in range(EPOCHS):
-
-    optimizer.zero_grad()
-
-    t = torch.rand(N_TX, 1, device=DEVICE) * (T_MAX - T_MIN) + T_MIN
-    x = torch.rand(N_TX, 1, device=DEVICE) * (X_MAX - X_MIN) + X_MIN
-
-    txv = make_txv_stack(t, x, v)
-
-    loss = (
-            0.05 * pde_loss(model, txv, v, TAU)              #MAGIC NUMBER!
-            + 20 * ic_loss(model) 
-            + boundary_loss(model, t, v, X_MIN, X_MAX)
+def train_loop(save_wheights=True):
+    t, x, v, domain = initialize_physics_data(      #Domain is handy dict for logging (below)
+        N_tx=N_TX,
+        N_v=N_V,
+        t_min=T_MIN,
+        t_max=T_MAX,
+        x_min=X_MIN,
+        x_max=X_MAX,
+        v_max=V_MAX,
+        device=DEVICE,
+        dtype=DTYPE
     )
 
-    loss.backward()
-    optimizer.step()
+    x_ic = torch.linspace(X_MIN, X_MAX, N_TX, dtype=DTYPE, device=DEVICE).unsqueeze(1)
+    t_ic = torch.zeros_like(x_ic)
+    v_ic = v
 
-    if epoch % 100 == 0:
-        print(f"Epoch {epoch}, Loss: {loss.item():.6e}")
+    txv_ic = make_txv_stack(t_ic, x_ic, v_ic).detach()
 
-print("Training complete.")
+    print("Learning on domain: ", domain)
 
-torch.save(model.state_dict(), f'model_weights{EPOCHS}.pth')
+    model = models.Mlp()
+    model.to(DEVICE).to(DTYPE)
+    model.apply(models.xavier_init)
 
-#model.load_state_dict(torch.load("./model_weights10000.pth", weights_only=True))
-print("Visualizing!")
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
-#t, x, v, domain = numpy_data_grid(N_TX, N_V, T_MIN, T_MAX, X_MIN, X_MIN, V_MAX)
-_, x, v, domain = initialize_physics_data(N_TX, N_V, T_MIN, T_MAX, X_MIN, X_MAX, V_MAX, DEVICE, DTYPE)
+    for epoch in range(EPOCHS):
+        optimizer.zero_grad()
 
-x = torch.linspace(X_MIN, X_MAX, N_TX, device=DEVICE).unsqueeze(1)
-v = torch.linspace(-V_MAX, V_MAX, N_V, device=DEVICE)
-t = 0.0
-plot_fxv(model, t, x, v)
-plot_moments(model, t, x, v)
-animate_density(model, x, v, [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+        t = torch.rand(N_TX, 1, device=DEVICE) * (T_MAX - T_MIN) + T_MIN
+        x = torch.rand(N_TX, 1, device=DEVICE) * (X_MAX - X_MIN) + X_MIN
+
+        loss = (
+                1 * pde_loss(model, t, x, v, TAU)              #magic numbers, but they work!
+              + 50 * ic_loss(model, txv_ic) 
+              + 5 * boundary_loss(model, t, v, X_MIN, X_MAX)
+              + 1 * moment_conservation_loss(model, t, x, v)
+        )
+
+        loss.backward()
+        optimizer.step()
+
+        if epoch % 100 == 0:
+            print(f"Epoch {epoch}, Loss: {loss.item():.6e}")
+
+    if(save_wheights):
+        torch.save(model.state_dict(), f'model_weights{EPOCHS}.pth')
+    print("Training complete.")
+
+#Keeps functions in here modular and importable
+if __name__ == "__main__":
+    train_loop(save_wheights=True)

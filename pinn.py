@@ -1,65 +1,71 @@
 import torch
 import torch.nn as nn
 from math import pi as PI, sqrt
-from bgk_physics import density, compute_u, temperature, maxwellian
+from bgk_physics import density, compute_u, energy_density, momentum_density, temperature, maxwellian
+from utils import make_txv_stack
 
-
-def bgk_residual(model, txv, v_grid, tau=1.0):
+def bgk_residual(model, t, x, v, tau=1.0):
     """
-    Computes the BGK PDE residual at given (t,x,v) points.
-    txv: shape (N,3), columns are (t, x, v)
+    Computes residuals of the bgk maxwellian.
 
-    Returns R: shape (N,)
+    Inputs:
+    t : (N_TX, 1)
+    x : (N_TX, 1)
+    v : (N_V,)
+
+    Outputs:
+    R : (N_TX * N_V)
     """
-    #txv = txv.clone().detach().requires_grad_(True)
-    f = model(txv)
 
-    # Gradients
+    # Build full Cartesian product (N_tx * N_v, 3)
+    txv = make_txv_stack(t, x, v)
+    txv = txv.clone().detach().requires_grad_(True)
+
+    N_total = txv.size(0)
+    N_v = v.size(0)
+    N_tx = N_total // N_v
+
+    # Forward pass
+    f = model(txv).squeeze(-1)          # (N_tx * N_v,)
+    f_grid = f.view(N_tx, N_v)          # (N_tx, N_v)
+
+    # Compute gradients w.r.t. (t,x,v)
     grads = torch.autograd.grad(
-        f, txv,
+        f,
+        txv,
         grad_outputs=torch.ones_like(f),
         create_graph=True
     )[0]
 
-    df_dt = grads[:, 0]  # d f / dt
-    df_dx = grads[:, 1]  # d f / dx
-    v = txv[:, 2]        # velocity
+    # Extract time and space derivatives
+    df_dt = grads[:, 0].view(N_tx, N_v)
+    df_dx = grads[:, 1].view(N_tx, N_v)
 
-    N_total = txv.size(0)
-    N_v = v_grid.size(0)
-    N_tx = N_total // N_v
+    # Expand velocity grid to batch form for maxwellian and residual
+    v_batch = v.unsqueeze(0).expand(N_tx, -1)
 
-    f_grid = f.view(N_tx, N_v)
-    # Compute macroscopic quantities for each point
-    # Here, for simplicity, we treat each point independently
-    rho = density(f_grid, v_grid).repeat(N_v)       # scalar per point
-    u = compute_u(f_grid, v_grid).repeat_interleave(N_v)
-    T = temperature(f_grid, v_grid).repeat_interleave(N_v)
-    M = maxwellian(rho, u, T, v)
+    rho = density(f_grid, v)
+    rho_safe = rho + 1e-12
 
-    # BGK PDE residual
-    R = df_dt + v * df_dx - (1.0 / tau) * (M - f)
-    return R
+    momentum = momentum_density(f_grid, v)
+    energy = energy_density(f_grid, v)
 
+    u = momentum / rho_safe
+    T = (2.0 / rho_safe) * (energy - 0.5 * rho_safe * u**2)
 
-class ConstantMaxwellian(nn.Module):
-    """
-    Returns a fixed Maxwellian distribution independent of (t,x,v)
-    """
+    rho = rho.unsqueeze(1)
+    u = u.unsqueeze(1)
+    T = T.unsqueeze(1)
 
-    def __init__(self, rho=1.0, u=0.0, T=1.0):
-        super().__init__()
-        self.rho = rho
-        self.u = u
-        self.T = T
+    M = maxwellian(rho, u, T, v_batch)
 
-    def forward(self, txv):
-        v = torch.unique(txv[:, 2])
-        prefactor = self.rho / sqrt(2 * PI * self.T)
-        exponent = - (v - self.u)**2 / (2 * self.T)
-        return prefactor * torch.exp(exponent)
+    # --- BGK residual ---
+    R = df_dt + v_batch * df_dx - (1.0 / tau) * (M - f_grid)
+
+    return R.reshape(-1)
 
 
+#Execute as main for testing
 if __name__ == "__main__":
     from utils import initialize_physics_data, make_txv_stack
 
@@ -90,5 +96,5 @@ if __name__ == "__main__":
     tau = 1.0
     model = TestMaxwellian(eps=0)
 
-    R = bgk_residual(model, txv, tau)
+    R = bgk_residual(model, txv, v, tau)
     print("Residual L2 norm:", torch.norm(R).item())
