@@ -116,6 +116,8 @@ def animate_density(model, x_grid, v_grid, t_list, ani_path):
         line.set_data(x_grid.detach().cpu().numpy(),
                       rho.detach().cpu().numpy())
         ax.set_title(f"Density ρ at t={t:.2f}")
+        ax.set_xlabel(f"x")
+        ax.set_ylabel(f"ρ(t,x)")
         return line,
 
     ani = FuncAnimation(fig, update, interval=500, frames=len(t_list), blit=False)
